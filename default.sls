@@ -2,15 +2,132 @@ python-is-python3:
   pkg:
     - installed
 
-ipython3:
-  pkg:
-    - installed
-
 virtualenv:
   pkg:
     - installed
 
+python3-venv:
+  pkg:
+    - installed
+
+pipx:
+  pkg:
+    - installed
+    - require:
+      - pkg: python3-venv
+
+/home/max/.envs:
+  file:
+    - directory
+    - user: max
+    - group: max
+
+jedi-language-server-installed:
+  cmd:
+    - run
+    - name: pipx install jedi-language-server
+    - unless: ls /home/max/.local/bin/jedi-language-server
+    - runas: max
+    - require:
+      - pkg: pipx
+
+python3-ipython:
+  pkg:
+    - installed
+
+ipython-install:
+  cmd:
+    - run
+    - name: update-alternatives --install /usr/bin/ipython ipython /usr/bin/ipython3 60
+    - unless: update-alternatives --list ipython | grep "^/usr/bin/ipython3$"
+    - require:
+      - pkg: python3-ipython
+
+ipython-auto:
+  alternatives:
+    - auto
+    - name: ipython 
+    - require:
+      - cmd: ipython-install
+
+python3-seaborn:
+  pkg:
+    - installed
+
+python3-pandas:
+  pkg:
+    - installed
+
 python3-pip:
+  pkg:
+    - installed
+
+pip-install:
+  cmd:
+    - run
+    - name: update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 60
+    - unless: update-alternatives --list pip | grep "^/usr/bin/pip3$"
+    - require:
+      - pkg: python3-pip
+
+pip-auto:
+  alternatives:
+    - auto
+    - name: pip 
+    - require:
+      - cmd: pip-install
+
+statsmodels-installed:
+  cmd:
+    - run
+    - name: pip install statsmodels
+    - unless: pip freeze | grep "^statsmodels=="
+    - require:
+      - alternatives: pip-auto
+
+python3-matplotlib:
+  pkg:
+    - installed
+
+python3-ipdb:
+  pkg:
+    - installed
+
+python3-netaddr:
+  pkg:
+    - installed
+
+yq-installed:
+  cmd:
+    - run
+    - name: snap install yq
+    - unless: which yq
+
+jq-installed:
+  cmd:
+    - run
+    - name: snap install jq
+    - unless: which jq
+
+black-installed:
+  cmd:
+    - run
+    - name: pipx install black
+    - unless: ls /home/max/.local/bin/black
+    - runas: max
+    - require:
+      - pkg: pipx
+
+isort-installed:
+  cmd:
+    - run
+    - name: pipx install isort
+    - unless: ls /home/max/.local/bin/isort
+    - runas: max
+    - require:
+      - pkg: pipx
+
+pgformatter:
   pkg:
     - installed
 
@@ -29,6 +146,8 @@ vim-editor-install:
     - run
     - name: update-alternatives --install /usr/bin/editor editor /usr/bin/vim 60
     - unless: update-alternatives --list editor | grep "^/usr/bin/vim$"
+    - require:
+      - pkg: neovim
 
 vim-editor-auto:
   alternatives:
@@ -218,10 +337,10 @@ make:
   pkg:
     - installed
 
-go-installed:
+go1.4-installed:
   cmd:
     - run
-    - name: "source /home/max/.gvm/scripts/gvm && gvm install go1.4 -B && gvm use go1.4 && gvm install go1.16.3 && gvm use go1.16.3 --default"
+    - name: source /home/max/.gvm/scripts/gvm && gvm install go1.4 -B
     - unless: source /home/max/.gvm/scripts/gvm && which go
     - runas: max
     - require:
@@ -229,6 +348,63 @@ go-installed:
       - pkg: bison
       - pkg: gcc
       - pkg: make
+
+
+go-installed:
+  cmd:
+    - run
+    - name: source /home/max/.gvm/scripts/gvm && gvm install go1.15.6 && gvm use go1.15.6 --default"
+    - unless: source /home/max/.gvm/scripts/gvm && which go && go version | grep "go1.15.6"
+    - runas: max
+    - require:
+      - cmd: go1.4-installed
+
+gopls-installed:
+ cmd:
+   - run
+   - name: source /home/max/.gvm/scripts/gvm && go get golang.org/x/tools/gopls
+   - unless: source /home/max/.gvm/scripts/gvm && which gopls
+   - runas: max
+   - env:
+     - GO111MODULUE: on
+   - require:
+     - cmd: go-installed
+     - cmd: ssh-setup
+
+gofumpt-installed:
+ cmd:
+   - run
+   - name: source /home/max/.gvm/scripts/gvm && go get mvdan.cc/gofumpt
+   - unless: source /home/max/.gvm/scripts/gvm && which gofumpt
+   - runas: max
+   - env:
+     - GO111MODULUE: on
+   - require:
+     - cmd: go-installed
+     - cmd: ssh-setup
+
+go-delve-cloned:
+  git:
+    - cloned
+    - name: git@github.com:go-delve/delve.git
+    - target: /home/max/delve
+    - user: max
+    - require:
+      - pkg: git
+      - cmd: ssh-setup
+
+go-delve-installed:
+ cmd:
+   - run
+   - name: source /home/max/.gvm/scripts/gvm && cd /home/max/delve && go install github.com/go-delve/delve/cmd/dlv
+   - unless: source /home/max/.gvm/scripts/gvm && which dlv
+   - runas: max
+   - env:
+     - GO111MODULUE: on
+   - require:
+     - cmd: go-installed
+     - cmd: ssh-setup
+     - git: go-delve-cloned
 
 /home/max/.antigen.zsh:
   file:
@@ -300,3 +476,88 @@ fzf-installed:
       - git: fzf-cloned
       - cmd: go-installed
       - pkg: ripgrep
+    - runas: max
+
+gnome-tweaks:
+  pkg:
+    - installed
+
+docker-repo:
+  pkgrepo:
+    - managed
+    - name: deb https://download.docker.com/linux/ubuntu focal stable
+    - file: /etc/apt/sources.list.d/docker.list
+    - architectures: amd64
+    - gpgcheck: 1
+    - key_url: https://download.docker.com/linux/ubuntu/gpg
+    - clean_file: True
+
+docker-ce:
+  pkg:
+    - installed
+    - require:
+      - pkgrepo: docker-repo
+
+docker-ce-cli:
+  pkg:
+    - installed
+    - require:
+      - pkgrepo: docker-repo
+
+containerd.io:
+  pkg:
+    - installed
+    - require:
+      - pkgrepo: docker-repo
+
+docker-compose:
+  pkg:
+    - installed
+
+pgcli:
+  pkg:
+    - installed
+
+protobuf-compiler:
+  pkg:
+    - installed
+
+golang-goprotobuf-dev:
+  pkg:
+    - installed
+
+sops-installed:
+ cmd:
+   - run
+   - name: source /home/max/.gvm/scripts/gvm && go get go.mozilla.org/sops/v3/cmd/sops
+   - unless: source /home/max/.gvm/scripts/gvm && which sops
+   - runas: max
+   - env:
+     - GO111MODULUE: on
+   - require:
+     - cmd: go-installed
+     - cmd: ssh-setup
+
+iotop:
+  pkg:
+    - installed
+
+csvtool:
+  pkg:
+    - installed
+
+gnome-shell-extension-ubuntu-dock:
+  pkg:
+    - purged
+
+vanilla-gnome-desktop:
+  pkg:
+    - installed
+
+ubuntu-gnome-desktop:
+  pkg:
+    - purged
+
+net-tools:
+  pkg:
+    - installed
