@@ -109,6 +109,24 @@ jq-installed:
     - name: snap install jq
     - unless: which jq
 
+glab-cloned:
+  git:
+    - cloned
+    - name: git@github.com:/profclems/glab.git
+    - target: /home/max/glab
+    - user: max
+    - require:
+      - pkg: git
+      - cmd: ssh-setup
+
+glab-installed:
+  cmd:
+    - run
+    - name: sh /home/max/glab/scripts/install.sh
+    - unless: which glab
+    - require:
+      - git: glab-cloned
+
 black-installed:
   cmd:
     - run
@@ -406,11 +424,10 @@ go-delve-installed:
      - cmd: ssh-setup
      - git: go-delve-cloned
 
-/home/max/.antigen.zsh:
-  file:
-    - managed
-    - source: https://git.io/antigen
-    - skip_verify: true
+antibody:
+  pkg.installed:
+    - sources:
+      - antibody: https://github.com/getantibody/antibody/releases/download/v6.1.1/antibody_6.1.1_linux_amd64.deb
 
 stow-tmux:
   cmd:
@@ -523,8 +540,16 @@ protobuf-compiler:
     - installed
 
 golang-goprotobuf-dev:
-  pkg:
-    - installed
+  cmd:
+    - run
+    - name: source /home/max/.gvm/scripts/gvm && go install google.golang.org/protobuf/cmd/protoc-gen-go
+    - unless: source /home/max/.gvm/scripts/gvm && which protoc-gen-go
+    - runas: max
+    - env:
+      - GO111MODULUE: on
+    - require:
+      - cmd: go-installed
+      - cmd: ssh-setup
 
 sops-installed:
  cmd:
@@ -561,3 +586,140 @@ ubuntu-gnome-desktop:
 net-tools:
   pkg:
     - installed
+
+idn:
+  pkg:
+    - installed
+
+helm-repo:
+  pkgrepo:
+    - managed
+    - name: deb https://baltocdn.com/helm/stable/debian/ all main
+    - file: /etc/apt/sources.list.d/helm-stable-debian.list
+    - architectures: amd64
+    - gpgcheck: 1
+    - key_url: https://baltocdn.com/helm/signing.asc
+    - clean_file: True
+
+helm:
+  pkg:
+    - installed
+    - require:
+      - pkgrepo: helm-repo
+
+helm-diff:
+  cmd:
+    - run
+    - name: helm plugin install https://github.com/databus23/helm-diff
+    - unless: helm plugin list | grep "diff"
+    - runas: max
+    - require:
+      - pkg: helm
+      - pkg: git
+      - cmd: ssh-setup
+
+/usr/local/bin/minikube:
+  file:
+    - managed
+    - source: https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+    - skip_verify: true
+    - mode: 755
+
+/usr/local/bin/skaffold:
+  file:
+    - managed
+    - source: https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
+    - skip_verify: true
+    - mode: 755
+
+uidmap:
+  pkg:
+    - installed
+
+docker-ce-rootless-extras:
+  pkg:
+    - installed
+    - require:
+      - pkg: uidmap
+
+dockerd-rootless-running:
+  cmd:
+    - run
+    - name: dockerd-rootless-setuptool.sh install
+    - unless: systemctl --user status docker.service
+    - runas: max
+    - env:
+      - DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1000/bus
+      - XDG_RUNTIME_DIR: /run/user/1000
+    - require:
+      - pkg: docker-ce-rootless-extras
+
+clangd:
+  pkg:
+    - installed
+
+/usr/local/bin/kind:
+  file:
+    - managed
+    - source: https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64
+    - skip_verify: true
+    - mode: 755
+
+/usr/local/bin/k3s:
+  file:
+    - managed
+    - source: https://github.com/k3s-io/k3s/releases/download/v1.21.1%2Bk3s1/k3s
+    - skip_verify: true
+    - mode: 755
+
+kubernetes-repo:
+  pkgrepo:
+    - managed
+    - name: deb https://apt.kubernetes.io/ kubernetes-xenial main
+    - file: /etc/apt/sources.list.d/kubernetes.list
+    - architectures: amd64
+    - gpgcheck: 1
+    - key_url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    - clean_file: True
+
+kubectl:
+  pkg:
+    - installed
+    - require:
+      - pkgrepo: kubernetes-repo
+
+deadsnakes-ppa:
+  pkgrepo.managed:
+    - ppa: deadsnakes/ppa
+
+python3.7:
+  pkg:
+    - installed
+    - require:
+      - pkgrepo: deadsnakes-ppa
+
+python3.7-venv:
+  pkg:
+    - installed
+    - require:
+      - pkgrepo: deadsnakes-ppa
+
+cloudsql-proxy:
+  pkg:
+    - installed
+
+gcloud-repo:
+  pkgrepo:
+    - managed
+    - name: deb https://packages.cloud.google.com/apt cloud-sdk main
+    - file: /etc/apt/sources.list.d/google-cloud-sdk.list
+    - architectures: amd64
+    - gpgcheck: 1
+    - key_url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    - clean_file: True
+
+google-cloud-sdk:
+  pkg:
+    - installed
+    - require:
+      - pkgrepo: gcloud-repo

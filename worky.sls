@@ -74,22 +74,6 @@ discover-cloned:
       - pkg: git
       - cmd: ssh-setup
 
-deadsnakes-ppa:
-  pkgrepo.managed:
-    - ppa: deadsnakes/ppa
-
-python3.7:
-  pkg:
-    - installed
-    - require:
-      - pkgrepo: deadsnakes-ppa
-
-python3.7-venv:
-  pkg:
-    - installed
-    - require:
-      - pkgrepo: deadsnakes-ppa
-
 nvidia-ppa:
   pkgrepo.managed:
     - ppa: graphics-drivers/ppa
@@ -180,16 +164,6 @@ yubikey-touch-detector-running:
       - file: /home/max/.config/systemd/user/yubikey-touch-detector.service
       - file: /home/max/.config/yubikey-touch-detector/service.conf
 
-cloudsql-proxy:
-  pkg:
-    - installed
-
-google-cloud-sdk-installed:
-  cmd:
-    - run
-    - name: snap install google-cloud-sdk --classic
-    - unless: which gcloud
-
 gcloud-auth:
   cmd:
     - run
@@ -197,7 +171,7 @@ gcloud-auth:
     - unless: gcloud auth list | grep "maxmzkr@censys.io"
     - runas: max
     - require:
-      - cmd: google-cloud-sdk-installed
+      - pkg: google-cloud-sdk
 
 gcloud-project:
   cmd:
@@ -226,12 +200,6 @@ gcloud-app-default:
     - require:
       - cmd: gcloud-auth
 
-kubectl-installed:
-  cmd:
-    - run
-    - name: snap install kubectl --classic
-    - unless: which kubectl
-
 kubectl-credentials:
   cmd:
     - run
@@ -239,7 +207,7 @@ kubectl-credentials:
     - unless: kubectl config current-context
     - runas: max
     - require:
-      - cmd: kubectl-installed
+      - pkg: kubectl
       - cmd: gcloud-auth
 
 docker-gcr:
@@ -250,4 +218,4 @@ docker-gcr:
     - runas: max
     - require:
       - pkg: docker-ce
-      - cmd: google-cloud-sdk-installed
+      - pkg: gcloud
