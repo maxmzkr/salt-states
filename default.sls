@@ -266,6 +266,7 @@ stow-git:
   cmd:
     - run
     - name: stow -d /home/max/dotfiles -S git
+    - runas: max
     - require:
       - pkg: stow
       - git: dotfiles
@@ -275,6 +276,7 @@ stow-dconf-prep:
     - run
     - name: rm /home/max/.config/dconf/user
     - unless: test -h /home/max/.config/dconf/user
+    - runas: max
     - require:
       - pkg: stow
       - git: dotfiles
@@ -283,6 +285,7 @@ stow-dconf:
   cmd:
     - run
     - name: stow -d /home/max/dotfiles -S dconf
+    - runas: max
     - require:
       - pkg: stow
       - git: dotfiles
@@ -292,6 +295,7 @@ stow-neovim:
   cmd:
     - run
     - name: stow -d /home/max/dotfiles -S neovim
+    - runas: max
     - require:
       - pkg: neovim
       - git: dotfiles
@@ -331,6 +335,7 @@ stow-zsh:
   cmd:
     - run
     - name: stow -d /home/max/dotfiles -S zsh
+    - runas: max
     - require:
       - pkg: zsh
       - git: dotfiles
@@ -433,6 +438,7 @@ stow-tmux:
   cmd:
     - run
     - name: stow -d /home/max/dotfiles -S tmux
+    - runas: max
     - require:
       - pkg: stow
       - git: dotfiles
@@ -723,3 +729,47 @@ google-cloud-sdk:
     - installed
     - require:
       - pkgrepo: gcloud-repo
+
+rand:
+  pkg:
+    - installed
+
+postgresql-client-12:
+  pkg:
+    - installed
+
+tfenv-repo:
+  git:
+    - cloned
+    - name: https://github.com/tfutils/tfenv.git
+    - target: /home/max/tfenv
+    - user: max
+    - require:
+      - pkg: git
+      - cmd: ssh-setup
+
+/home/max/.local/bin/tfenv:
+  file:
+    - symlink
+    - target: /home/max/tfenv/bin/tfenv
+
+/home/max/.local/bin/terraform:
+  file:
+    - symlink
+    - target: /home/max/tfenv/bin/terraform
+
+podman-repo:
+  pkgrepo:
+    - managed
+    - name: deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/testing/xUbuntu_{{ salt['cmd.run']("lsb_release -rs") }}/ /
+    - file: /etc/apt/sources.list.d/devel:kubic:libcontainers:testing.list
+    - architectures: amd64
+    - gpgcheck: 1
+    - key_url: https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/testing/xUbuntu_{{ salt['cmd.run']("lsb_release -rs") }}/Release.key
+    - clean_file: True
+
+podman:
+  pkg:
+    - installed
+    - require:
+      - pkgrepo: podman-repo
