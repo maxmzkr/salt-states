@@ -434,6 +434,16 @@ antibody:
     - sources:
       - antibody: https://github.com/getantibody/antibody/releases/download/v6.1.1/antibody_6.1.1_linux_amd64.deb
 
+tmux-plugins-cloned:
+  git:
+    - cloned
+    - name: git@github.com:tmux-plugins/tpm.git
+    - target: /home/max/.tmux/plugins/tpm
+    - user: max
+    - require:
+      - pkg: git
+      - cmd: ssh-setup
+
 stow-tmux:
   cmd:
     - run
@@ -442,6 +452,7 @@ stow-tmux:
     - require:
       - pkg: stow
       - git: dotfiles
+      - git: tmux-plugins-cloned
 
 tmux-cloned:
   git:
@@ -452,6 +463,7 @@ tmux-cloned:
     - require:
       - pkg: git
       - cmd: ssh-setup
+      - cmd: stow-tmux
 
 automake:
   pkg:
