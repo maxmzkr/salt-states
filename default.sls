@@ -785,3 +785,19 @@ podman:
     - installed
     - require:
       - pkgrepo: podman-repo
+
+chrome-repo:
+  pkgrepo:
+    - managed
+    - name: deb http://dl.google.com/linux/chrome/deb/ stable main
+    - file: /etc/apt/sources.list.d/google-chrome.list
+    - architectures: amd64
+    - gpgcheck: 1
+    - key_url: https://dl.google.com/linux/linux_signing_key.pub
+    - clean_file: True
+
+google-chrome-stable:
+  pkg:
+    - installed
+    - require:
+      - pkgrepo: chrome-repo
