@@ -217,14 +217,21 @@ git:
     - directory
     - user: max
     - group: max
+    - makedirs: True
 
 /home/max/.cache/nvim/swap:
   file:
     - directory
+    - user: max
+    - group: max
+    - makedirs: True
 
 /home/max/.cache/nvim/undo:
   file:
     - directory
+    - user: max
+    - group: max
+    - makedirs: True
 
 dein-cloned:
   git:
@@ -376,7 +383,7 @@ go1.4-installed:
 go-installed:
   cmd:
     - run
-    - name: source /home/max/.gvm/scripts/gvm && gvm install go1.15.6 && gvm use go1.15.6 --default"
+    - name: source /home/max/.gvm/scripts/gvm && gvm use go1.4 && gvm install go1.15.6 && gvm use go1.15.6 --default
     - unless: source /home/max/.gvm/scripts/gvm && which go && go version | grep "go1.15.6"
     - runas: max
     - require:
@@ -432,7 +439,7 @@ go-delve-installed:
 antibody:
   pkg.installed:
     - sources:
-      - antibody: https://github.com/getantibody/antibody/releases/download/v6.1.1/antibody_6.1.1_linux_amd64.deb
+      - antibody: {{ salt['cmd.shell']('curl -s https://api.github.com/repos/getantibody/antibody/releases/latest | grep "browser_download" | grep "amd64.deb" | cut -d : -f 2- | tr -d \\"') }}
 
 tmux-plugins-cloned:
   git:
@@ -569,17 +576,11 @@ golang-goprotobuf-dev:
       - cmd: go-installed
       - cmd: ssh-setup
 
-sops-installed:
- cmd:
-   - run
-   - name: source /home/max/.gvm/scripts/gvm && go get go.mozilla.org/sops/v3/cmd/sops
-   - unless: source /home/max/.gvm/scripts/gvm && which sops
-   - runas: max
-   - env:
-     - GO111MODULUE: on
-   - require:
-     - cmd: go-installed
-     - cmd: ssh-setup
+sops:
+ pkg:
+   - installed
+   - sources:
+     - sops: {{ salt['cmd.shell']('curl -s https://api.github.com/repos/mozilla/sops/releases/latest | grep "browser_download" | grep ".deb" | cut -d : -f 2- | tr -d \\"') }}
 
 iotop:
   pkg:
@@ -636,19 +637,11 @@ helm-diff:
       - pkg: git
       - cmd: ssh-setup
 
-/usr/local/bin/minikube:
-  file:
-    - managed
-    - source: https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-    - skip_verify: true
-    - mode: 755
-
-/usr/local/bin/skaffold:
-  file:
-    - managed
-    - source: https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
-    - skip_verify: true
-    - mode: 755
+minikube:
+  pkg:
+    - installed
+    - sources:
+      - minikube: {{ salt['cmd.shell']('curl -s https://api.github.com/repos/kubernetes/minikube/releases/latest | grep "browser_download" | grep "amd64.deb" | grep -v "docker-machine" | cut -d : -f 2- | tr -d \\"') }}
 
 uidmap:
   pkg:
@@ -675,20 +668,6 @@ dockerd-rootless-running:
 clangd:
   pkg:
     - installed
-
-/usr/local/bin/kind:
-  file:
-    - managed
-    - source: https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64
-    - skip_verify: true
-    - mode: 755
-
-/usr/local/bin/k3s:
-  file:
-    - managed
-    - source: https://github.com/k3s-io/k3s/releases/download/v1.21.1%2Bk3s1/k3s
-    - skip_verify: true
-    - mode: 755
 
 kubernetes-repo:
   pkgrepo:
@@ -809,3 +788,23 @@ openresolv:
 dnsmasq:
   pkg:
     - installed
+
+monkeysphere:
+  pkg:
+    - installed
+
+xpra-repo:
+  pkgrepo:
+    - managed
+    - name: deb https://xpra.org/ {{ salt['cmd.run']("lsb_release -cs") }} main
+    - file: /etc/apt/sources.list.d/xpra.list
+    - architectures: amd64
+    - gpgcheck: 1
+    - key_url: https://xpra.org/gpg.asc
+    - clean_file: True
+
+xpra:
+  pkg:
+    - installed
+    - requires:
+      - pkg: xpra-repo
