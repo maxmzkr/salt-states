@@ -801,3 +801,11 @@ google-chrome-stable:
     - installed
     - require:
       - pkgrepo: chrome-repo
+
+openresolv:
+  pkg:
+    - installed
+
+dnsmasq:
+  pkg:
+    - installed
