@@ -3,10 +3,8 @@ base:
     - default
   'worky':
     - worky
-  'yubikey':
-    - match: grain
     - yubikey
-  'not G@yubikey':
+  'not worky':
     - match: compound
     - no-yubikey
   'roles:server':

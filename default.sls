@@ -103,11 +103,27 @@ yq-installed:
     - name: snap install yq
     - unless: which yq
 
-jq-installed:
+old-jq-snap:
   cmd:
     - run
-    - name: snap install jq
+    - name: snap remove jq
+    - unless: "! snap list jq && true"
+
+jq-core20:
+  cmd:
+    - run
+    - name: snap install --edge jq-core20
+    - unless: which jq-core20
+    - require:
+      - cmd: old-jq-snap
+
+jq-alias:
+  cmd:
+    - run
+    - name: snap alias jq-core20.jq jq
     - unless: which jq
+    - require:
+      - cmd: jq-core20
 
 glab-cloned:
   git:
@@ -808,3 +824,17 @@ xpra:
     - installed
     - requires:
       - pkg: xpra-repo
+
+gparted:
+  pkg:
+    - installed
+
+kompose:
+  cmd:
+    - run
+    - name: snap install kompose
+    - unless: which kompose
+
+nvtop:
+  pkg:
+    - installed
