@@ -797,15 +797,7 @@ google-chrome-stable:
     - require:
       - pkgrepo: chrome-repo
 
-openresolv:
-  pkg:
-    - installed
-
-dnsmasq:
-  pkg:
-    - installed
-
-monkeysphere:
+resolvconf:
   pkg:
     - installed
 
@@ -835,6 +827,123 @@ kompose:
     - name: snap install kompose
     - unless: which kompose
 
-nvtop:
+mesa-utils:
+  pkg:
+    - installed
+
+openjdk-16-jre-headless:
+  pkg:
+    - installed
+
+helm-bitnami-repo:
+  cmd:
+    - run
+    - name: helm repo add bitnami https://charts.bitnami.com/bitnami
+    - unless: helm repo list | grep bitnami
+    - runas: max
+    - require:
+      - pkg: helm
+
+subversion:
+  pkg:
+    - installed
+
+docker-group:
+  group:
+    - present
+    - name: docker
+    - members:
+      - max
+
+nvm:
+  cmd:
+    - run
+    - name: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash
+    - unless: ls /home/max/.nvm/nvm.sh
+    - runas: max
+
+npm:
+  cmd:
+    - run
+    - name: source /home/max/.nvm/nvm.sh && nvm install node --default
+    - unless: source /home/max/.nvm/nvm.sh && which npm
+    - runas: max
+    - require:
+      - cmd: nvm
+
+ng:
+  cmd:
+    - run
+    - name: source /home/max/.nvm/nvm.sh && npm install @angular/cli 
+    - unless: source /home/max/.nvm/nvm.sh && npm ls ng
+    - runas: max
+    - require:
+      - cmd: npm
+
+systemd-resolved-disabled:
+  service:
+    - dead
+    - name: systemd-resolved
+    - enable: False
+
+dnsmasq:
+  pkg:
+    - installed
+
+/etc/dnsmasq.conf:
+  file:
+    - managed
+    - contents: |
+        conf-dir=/etc/dnsmasq.d/,*.conf
+
+network-manager-dns:
+  file:
+    - blockreplace
+    - name: /etc/NetworkManager/NetworkManager.conf
+    - insert_after_match: \[main\]
+    - marker_start: "#-- start managed zone - dns --"
+    - marker_end: "#-- end managed zone - dns --"
+    - content: |
+        dns=dnsmasq
+
+NetworkManager.service:
+  service:
+    - running
+    - enable: True
+    - requires:
+      - pkg: dnsmasq
+      - file: /etc/dnsmasq.conf
+      - file: network-manager-dns
+    - watch:
+      - pkg: dnsmasq
+      - file: /etc/dnsmasq.conf
+      - file: network-manager-dns
+
+/etc/resolvconf/resolv.conf.d/base:
+  file:
+    - managed
+    - makedirs: True
+    - contents: |
+        search test
+        nameserver 192.168.49.2
+        timeout 5
+
+resolvconf-update:
+  cmd:
+    - run
+    - name: resolvconf -u
+    - requires:
+      - pkg: resolvconf
+    - onchanges:
+      - file: /etc/resolvconf/resolv.conf.d/base
+
+resolvconf.service:
+  service:
+    - dead
+    - enable: False
+    - require:
+      - cmd: resolvconf-update
+
+ifupdown:
   pkg:
     - installed
