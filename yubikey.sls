@@ -83,7 +83,11 @@ yubikey-touch-detector-running:
 pcscd-installed:
   pkg:
     - installed
+{% if grains['os'] == 'Fedora' %}
+    - name: pcsc-lite
+{% else %}
     - name: pcscd
+{% endif %}
 
 pcscd-enabled:
   service:
@@ -99,9 +103,11 @@ pcscd-running:
     - require:
       - service: pcscd-enabled
 
+{% if grains['os'] != 'Fedora' %}
 scdaemon:
   pkg:
     - installed
+{% endif %}
 
 SSH_AUTH_SOCK:
   environ:
@@ -115,5 +121,7 @@ ssh-setup:
     - unless: echo ""
     - require:
       - service: pcscd-running
+{% if grains['os'] != 'Fedora' %}
       - pkg: scdaemon
+{% endif %}
       - environ: SSH_AUTH_SOCK

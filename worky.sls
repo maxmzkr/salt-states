@@ -5,7 +5,11 @@ zoom-installed:
   pkg:
     - installed
     - sources:
+{% if grains['os'] == 'Fedora' %}
+      - zoom: https://zoom.us/client/latest/zoom_x86_64.rpm 
+{% else %}
       - zoom: https://zoom.us/client/latest/zoom_amd64.deb 
+{% endif %}
 
 stow-gitwork:
   cmd:
@@ -35,10 +39,6 @@ discover-cloned:
     - require:
       - pkg: git
       - cmd: ssh-setup
-
-nvidia-ppa:
-  pkgrepo.managed:
-    - ppa: graphics-drivers/ppa
 
 whois:
   pkg:
@@ -98,4 +98,4 @@ docker-gcr:
     - runas: max
     - require:
       - pkg: docker-ce
-      - pkg: gcloud
+      - pkg: google-cloud-sdk

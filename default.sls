@@ -1,20 +1,12 @@
+{% if grains['os'] != 'Fedora' %}
 python-is-python3:
   pkg:
     - installed
-
-virtualenv:
-  pkg:
-    - installed
-
-python3-venv:
-  pkg:
-    - installed
+{% endif %}
 
 pipx:
   pkg:
     - installed
-    - require:
-      - pkg: python3-venv
 
 /home/max/.envs:
   file:
@@ -97,17 +89,39 @@ python3-netaddr:
   pkg:
     - installed
 
+
+{% if grains['os'] == 'Fedora' %}
+snapd:
+  pkg:
+    - installed
+
+/snap:
+  file:
+    - symlink
+    - target: /var/lib/snapd/snap
+{% endif %}
+
 yq-installed:
   cmd:
     - run
     - name: snap install yq
     - unless: which yq
+{% if grains['os'] == 'Fedora' %}
+    - require:
+      - pkg: snapd
+      - file: /snap
+{% endif %}
 
 old-jq-snap:
   cmd:
     - run
     - name: snap remove jq
     - unless: "! snap list jq && true"
+{% if grains['os'] == 'Fedora' %}
+    - require:
+      - pkg: snapd
+      - file: /snap
+{% endif %}
 
 jq-core20:
   cmd:
@@ -116,6 +130,11 @@ jq-core20:
     - unless: which jq-core20
     - require:
       - cmd: old-jq-snap
+{% if grains['os'] == 'Fedora' %}
+    - require:
+      - pkg: snapd
+      - file: /snap
+{% endif %}
 
 jq-alias:
   cmd:
@@ -124,6 +143,11 @@ jq-alias:
     - unless: which jq
     - require:
       - cmd: jq-core20
+{% if grains['os'] == 'Fedora' %}
+    - require:
+      - pkg: snapd
+      - file: /snap
+{% endif %}
 
 glab-cloned:
   git:
@@ -161,19 +185,29 @@ isort-installed:
     - require:
       - pkg: pipx
 
+{#
 pgformatter:
   pkg:
     - installed
+#}
 
-neovim-ppa:
-  pkgrepo.managed:
+neovim-repo:
+  pkgrepo:
+    - managed
+{% if grains['os'] == 'Fedora' %}
+    - name: neovim-nightly
+    - baseurl: https://download.copr.fedorainfracloud.org/results/agriffis/neovim-nightly/fedora-$releasever-$basearch/
+    - gpgcheck: 1
+    - gpgkey: https://download.copr.fedorainfracloud.org/results/agriffis/neovim-nightly/pubkey.gpg 
+{% else %}
     - ppa: neovim-ppa/unstable
+{% endif %}
 
 neovim:
   pkg:
     - installed 
     - require:
-      - pkgrepo: neovim-ppa
+      - pkgrepo: neovim-repo
 
 vim-editor-install:
   cmd:
@@ -218,15 +252,19 @@ nvim-vim-auto:
     - require:
       - cmd: nvim-vim-install
   
-git-ppa:
+{% if grains['os'] != 'Fedora' %}
+git-repo:
   pkgrepo.managed:
     - ppa: git-core/ppa
+{% endif %}
 
 git:
   pkg:
     - installed
+{% if grains['os'] != 'Fedora' %}
     - require:
-      - pkgrepo: git-ppa
+      - pkgrepo: git-repo
+{% endif %}
 
 /home/max/.cache/nvim/back:
   file:
@@ -262,7 +300,7 @@ dein-cloned:
 dein-install:
   cmd:
     - run
-    - name: vim '+call dein#install()' '+qa!'
+    - name: nvim '+call dein#install()' '+qa!'
     - runas: max
     - require:
       - git: dein-cloned
@@ -277,9 +315,11 @@ dotfiles:
       - pkg: git
       - cmd: ssh-setup
 
+{% if grains['os'] != 'Fedora' %}
 apt-file:
   pkg:
     - installed
+{% endif %}
 
 stow:
   pkg:
@@ -327,9 +367,11 @@ xclip:
   pkg:
     - installed
 
+{% if grains['os'] != 'Fedora' %}
 dconf-cli:
   pkg:
     - installed
+{% endif %}
 
 solarized-cloned:
   git:
@@ -347,7 +389,9 @@ solarized-installed:
     - name: cd /home/max/gnome-terminal-colors-solarized && ./install.sh -s light --install-dircolors -p $(dconf list /org/gnome/terminal/legacy/profiles:/ | sed -e 's/://' | sed -e 's/\///')
     - runas: max
     - require:
+{% if grains['os'] != 'Fedora' %}
       - pkg: dconf-cli
+{% endif %}
       - git: solarized-cloned
 
 zsh:
@@ -406,28 +450,28 @@ go-installed:
       - cmd: go1.4-installed
 
 gopls-installed:
- cmd:
-   - run
-   - name: source /home/max/.gvm/scripts/gvm && go get golang.org/x/tools/gopls
-   - unless: source /home/max/.gvm/scripts/gvm && which gopls
-   - runas: max
-   - env:
-     - GO111MODULUE: on
-   - require:
-     - cmd: go-installed
-     - cmd: ssh-setup
+  cmd:
+    - run
+    - name: source /home/max/.gvm/scripts/gvm && go get golang.org/x/tools/gopls
+    - unless: source /home/max/.gvm/scripts/gvm && which gopls
+    - runas: max
+    - env:
+      - GO111MODULUE: on
+    - require:
+      - cmd: go-installed
+      - cmd: ssh-setup
 
 gofumpt-installed:
- cmd:
-   - run
-   - name: source /home/max/.gvm/scripts/gvm && go get mvdan.cc/gofumpt
-   - unless: source /home/max/.gvm/scripts/gvm && which gofumpt
-   - runas: max
-   - env:
-     - GO111MODULUE: on
-   - require:
-     - cmd: go-installed
-     - cmd: ssh-setup
+  cmd:
+    - run
+    - name: source /home/max/.gvm/scripts/gvm && go get mvdan.cc/gofumpt
+    - unless: source /home/max/.gvm/scripts/gvm && which gofumpt
+    - runas: max
+    - env:
+      - GO111MODULUE: on
+    - require:
+      - cmd: go-installed
+      - cmd: ssh-setup
 
 go-delve-cloned:
   git:
@@ -440,22 +484,26 @@ go-delve-cloned:
       - cmd: ssh-setup
 
 go-delve-installed:
- cmd:
-   - run
-   - name: source /home/max/.gvm/scripts/gvm && cd /home/max/delve && go install github.com/go-delve/delve/cmd/dlv
-   - unless: source /home/max/.gvm/scripts/gvm && which dlv
-   - runas: max
-   - env:
-     - GO111MODULUE: on
-   - require:
-     - cmd: go-installed
-     - cmd: ssh-setup
-     - git: go-delve-cloned
+  cmd:
+    - run
+    - name: source /home/max/.gvm/scripts/gvm && cd /home/max/delve && go install github.com/go-delve/delve/cmd/dlv
+    - unless: source /home/max/.gvm/scripts/gvm && which dlv
+    - runas: max
+    - env:
+      - GO111MODULUE: on
+    - require:
+      - cmd: go-installed
+      - cmd: ssh-setup
+      - git: go-delve-cloned
 
 antibody:
   pkg.installed:
     - sources:
+{% if grains['os'] == 'Fedora' %}
+      - antibody: {{ salt['cmd.shell']('curl -s https://api.github.com/repos/getantibody/antibody/releases/latest | grep "browser_download" | grep "amd64.rpm" | cut -d : -f 2- | tr -d \\"') }}
+{% else %}
       - antibody: {{ salt['cmd.shell']('curl -s https://api.github.com/repos/getantibody/antibody/releases/latest | grep "browser_download" | grep "amd64.deb" | cut -d : -f 2- | tr -d \\"') }}
+{% endif %}
 
 tmux-plugins-cloned:
   git:
@@ -495,10 +543,25 @@ automake:
 libevent-dev:
   pkg:
     - installed
+{% if grains['os'] == 'Fedora' %}
+    - name: libevent-devel
+{% else %}
+    - name: libevent-dev
+{% endif %}
 
 libncurses-dev:
   pkg:
     - installed
+{% if grains['os'] == 'Fedora' %}
+    - name: ncurses-devel
+{% else %}
+    - name: libncurses-dev
+{% endif %}
+
+tmux-remove-default:
+  pkg:
+    - removed
+    - name: tmux
 
 tmux-installed:
   cmd:
@@ -510,6 +573,7 @@ tmux-installed:
       - pkg: automake
       - pkg: libevent-dev
       - pkg: libncurses-dev
+      - pkg: tmux-remove-default
 
 ripgrep:
   pkg:
@@ -543,18 +607,39 @@ gnome-tweaks:
 docker-repo:
   pkgrepo:
     - managed
+{% if grains['os'] == 'Fedora' %}
+    - name: docker-ce
+    - baseurl: https://download.docker.com/linux/fedora/$releasever/$basearch/stable 
+    - gpgcheck: 1
+    - gpgkey: https://download.docker.com/linux/fedora/gpg
+{% else %}
     - name: deb https://download.docker.com/linux/ubuntu focal stable
     - file: /etc/apt/sources.list.d/docker.list
     - architectures: amd64
     - gpgcheck: 1
     - key_url: https://download.docker.com/linux/ubuntu/gpg
     - clean_file: True
+{% endif %}
 
 docker-ce:
   pkg:
     - installed
     - require:
       - pkgrepo: docker-repo
+
+docker-enabled:
+  service:
+    - enabled
+    - name: docker
+    - require:
+      - pkg: docker-ce
+
+docker-ce-running:
+  service:
+    - running
+    - name: docker
+    - require:
+      - service: docker-enabled
 
 docker-ce-cli:
   pkg:
@@ -580,6 +665,11 @@ protobuf-compiler:
   pkg:
     - installed
 
+protobuf-devel:
+  pkg:
+    - installed
+
+{#
 golang-goprotobuf-dev:
   cmd:
     - run
@@ -591,12 +681,17 @@ golang-goprotobuf-dev:
     - require:
       - cmd: go-installed
       - cmd: ssh-setup
+#}
 
 sops:
- pkg:
-   - installed
-   - sources:
-     - sops: {{ salt['cmd.shell']('curl -s https://api.github.com/repos/mozilla/sops/releases/latest | grep "browser_download" | grep ".deb" | cut -d : -f 2- | tr -d \\"') }}
+  pkg:
+    - installed
+    - sources:
+{% if grains['os'] == 'Fedora' %}
+      - sops: {{ salt['cmd.shell']('curl -s https://api.github.com/repos/mozilla/sops/releases/latest | grep "browser_download" | grep ".rpm" | cut -d : -f 2- | tr -d \\"') }}
+{% else %}
+      - sops: {{ salt['cmd.shell']('curl -s https://api.github.com/repos/mozilla/sops/releases/latest | grep "browser_download" | grep ".deb" | cut -d : -f 2- | tr -d \\"') }}
+{% endif %}
 
 iotop:
   pkg:
@@ -605,14 +700,21 @@ iotop:
 csvtool:
   pkg:
     - installed
+{% if grains['os'] == 'Fedora' %}
+    - name: ocaml-csv
+{% else %}
+    - name: csvtool
+{% endif %}
 
 gnome-shell-extension-ubuntu-dock:
   pkg:
     - purged
 
+{% if grains['os'] != 'Fedora' %}
 vanilla-gnome-desktop:
   pkg:
     - installed
+{% endif %}
 
 ubuntu-gnome-desktop:
   pkg:
@@ -625,7 +727,13 @@ net-tools:
 idn:
   pkg:
     - installed
+{% if grains['os'] == 'Fedora' %}
+    - name: libidn
+{% else %}
+    - name: idn
+{% endif %}
 
+{% if grains['os'] != 'Fedora' %}
 helm-repo:
   pkgrepo:
     - managed
@@ -635,12 +743,23 @@ helm-repo:
     - gpgcheck: 1
     - key_url: https://baltocdn.com/helm/signing.asc
     - clean_file: True
+{% endif %}
 
 helm:
+{% if grains['os'] == 'Fedora' %}
+  cmd:
+    - run
+    - name: snap install helm --classic
+    - unless: which helm
+    - require:
+      - pkg: snapd
+      - file: /snap
+{% else %}
   pkg:
     - installed
     - require:
       - pkgrepo: helm-repo
+{% endif %}
 
 helm-diff:
   cmd:
@@ -649,7 +768,11 @@ helm-diff:
     - unless: helm plugin list | grep "diff"
     - runas: max
     - require:
+{% if grains['os'] == 'Fedora' %}
+      - cmd: helm
+{% else %}
       - pkg: helm
+{% endif %}
       - pkg: git
       - cmd: ssh-setup
 
@@ -657,8 +780,13 @@ minikube:
   pkg:
     - installed
     - sources:
-      - minikube: {{ salt['cmd.shell']('curl -s https://api.github.com/repos/kubernetes/minikube/releases/latest | grep "browser_download" | grep "amd64.deb" | grep -v "docker-machine" | cut -d : -f 2- | tr -d \\"') }}
+{% if grains['os'] == 'Fedora' %}
+      - minikube: https://storage.googleapis.com/minikube/releases/latest/minikube-latest.x86_64.rpm
+{% else %}
+      - minikube: https://storage.googleapis.com/minikube/releases/latest/minikube_latest_amd64.deb
+{% endif %}
 
+{#
 uidmap:
   pkg:
     - installed
@@ -680,20 +808,33 @@ dockerd-rootless-running:
       - XDG_RUNTIME_DIR: /run/user/1000
     - require:
       - pkg: docker-ce-rootless-extras
+#}
 
 clangd:
   pkg:
     - installed
+{% if grains['os'] == 'Fedora' %}
+    - name: clang-tools-extra
+{% else %}
+    - name: clangd
+{% endif %}
 
 kubernetes-repo:
   pkgrepo:
     - managed
+{% if grains['os'] == 'Fedora' %}
+    - name: kubernetes
+    - baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+    - gpgcheck: 1
+    - gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+{% else %}
     - name: deb https://apt.kubernetes.io/ kubernetes-xenial main
     - file: /etc/apt/sources.list.d/kubernetes.list
     - architectures: amd64
     - gpgcheck: 1
     - key_url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
     - clean_file: True
+{% endif %}
 
 kubectl:
   pkg:
@@ -701,6 +842,37 @@ kubectl:
     - require:
       - pkgrepo: kubernetes-repo
 
+zlib-devel:
+  pkg:
+    - installed
+
+{% if grains['os'] == 'Fedora' %}
+python3.7-tar:
+  archive:
+    - extracted
+    - name: /home/max/.python3.7.11
+    - source: https://www.python.org/ftp/python/3.7.11/Python-3.7.11.tgz  
+    - user: max
+    - group: max
+    - skip_verify: true
+
+python3.7:
+  cmd:
+    - run
+    - name: cd /home/max/.python3.7.11/Python-3.7.11 && ./configure --enable-optimizations && make altinstall
+    - unless: which python3.7
+    - require:
+      - archive: python3.7-tar
+      - pkg: zlib-devel
+
+python3.7-pip:
+  cmd:
+    - run
+    - name: python3.7 -m ensurepip
+    - runas: max
+    - require:
+      - cmd: python3.7
+{% else %}
 deadsnakes-ppa:
   pkgrepo.managed:
     - ppa: deadsnakes/ppa
@@ -716,20 +888,38 @@ python3.7-venv:
     - installed
     - require:
       - pkgrepo: deadsnakes-ppa
+{% endif %}
+
 
 cloudsql-proxy:
-  pkg:
-    - installed
+  cmd:
+    - run
+    - name: go get github.com/GoogleCloudPlatform/cloudsql-proxy/cmd/cloud_sql_proxy
+    - unless: which cloud_sql_proxy
+    - runas: max
+    - env:
+      - GO111MODULUE: on
+    - require:
+      - cmd: go-installed
+      - cmd: ssh-setup
 
 gcloud-repo:
   pkgrepo:
     - managed
+{% if grains['os'] == 'Fedora' %}
+    - name: google-cloud-sdk
+    - baseurl: https://packages.cloud.google.com/yum/repos/cloud-sdk-el7-x86_64
+    - gpgcheck: 1
+    - gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+    - repo_gpgcheck: 0
+{% else %}
     - name: deb https://packages.cloud.google.com/apt cloud-sdk main
     - file: /etc/apt/sources.list.d/google-cloud-sdk.list
     - architectures: amd64
     - gpgcheck: 1
     - key_url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
     - clean_file: True
+{% endif %}
 
 google-cloud-sdk:
   pkg:
@@ -737,13 +927,14 @@ google-cloud-sdk:
     - require:
       - pkgrepo: gcloud-repo
 
-rand:
+psql:
   pkg:
     - installed
-
-postgresql-client-12:
-  pkg:
-    - installed
+{% if grains['os'] == 'Fedora' %}
+    - name: postgresql
+{% else %}
+    - name: postgresql-client-12
+{% endif %}
 
 tfenv-repo:
   git:
@@ -765,6 +956,7 @@ tfenv-repo:
     - symlink
     - target: /home/max/tfenv/bin/terraform
 
+{#
 podman-repo:
   pkgrepo:
     - managed
@@ -780,16 +972,24 @@ podman:
     - installed
     - require:
       - pkgrepo: podman-repo
+#}
 
 chrome-repo:
   pkgrepo:
     - managed
+{% if grains['os'] == 'Fedora' %}
+    - name: google-chrome
+    - baseurl: http://dl.google.com/linux/chrome/rpm/stable/x86_64
+    - gpgcheck: 1
+    - gpgkey: https://dl.google.com/linux/linux_signing_key.pub
+{% else %}
     - name: deb http://dl.google.com/linux/chrome/deb/ stable main
     - file: /etc/apt/sources.list.d/google-chrome.list
     - architectures: amd64
     - gpgcheck: 1
     - key_url: https://dl.google.com/linux/linux_signing_key.pub
     - clean_file: True
+{% endif %}
 
 google-chrome-stable:
   pkg:
@@ -797,10 +997,16 @@ google-chrome-stable:
     - require:
       - pkgrepo: chrome-repo
 
-resolvconf:
+openresolv:
   pkg:
     - installed
 
+dnsmasq:
+  pkg:
+    - installed
+
+
+{#
 xpra-repo:
   pkgrepo:
     - managed
@@ -816,6 +1022,7 @@ xpra:
     - installed
     - requires:
       - pkg: xpra-repo
+#}
 
 gparted:
   pkg:
@@ -826,6 +1033,11 @@ kompose:
     - run
     - name: snap install kompose
     - unless: which kompose
+{% if grains['os'] == 'Fedora' %}
+    - require:
+      - pkg: snapd
+      - file: /snap
+{% endif %}
 
 mesa-utils:
   pkg:
@@ -945,5 +1157,16 @@ resolvconf.service:
       - cmd: resolvconf-update
 
 ifupdown:
+  pkg:
+    - installed
+
+docker-group:
+  group:
+    - present
+    - name: docker
+    - members:
+      - max
+
+xrandr:
   pkg:
     - installed
