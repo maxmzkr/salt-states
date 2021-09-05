@@ -101,7 +101,7 @@ snapd:
     - target: /var/lib/snapd/snap
 {% endif %}
 
-yq-installed:
+yq:
   cmd:
     - run
     - name: snap install yq
