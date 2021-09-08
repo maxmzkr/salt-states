@@ -443,8 +443,8 @@ go1.4-installed:
 go-installed:
   cmd:
     - run
-    - name: source /home/max/.gvm/scripts/gvm && gvm use go1.4 && gvm install go1.15.6 && gvm use go1.15.6 --default
-    - unless: source /home/max/.gvm/scripts/gvm && which go && go version | grep "go1.15.6"
+    - name: source /home/max/.gvm/scripts/gvm && gvm use go1.4 && gvm install go1.17 && gvm use go1.17 --default && gvm use go1.17
+    - unless: source /home/max/.gvm/scripts/gvm && which go && go version | grep "go1.17"
     - runas: max
     - require:
       - cmd: go1.4-installed
@@ -776,6 +776,21 @@ helm-diff:
       - pkg: git
       - cmd: ssh-setup
 
+helm-secrets:
+  cmd:
+    - run
+    - name: helm plugin install https://github.com/jkroepke/helm-secrets
+    - unless: helm plugin list | grep "secrets"
+    - runas: max
+    - require:
+{% if grains['os'] == 'Fedora' %}
+      - cmd: helm
+{% else %}
+      - pkg: helm
+{% endif %}
+      - pkg: git
+      - cmd: ssh-setup
+
 minikube:
   pkg:
     - installed
@@ -892,6 +907,11 @@ python3.7-venv:
 
 
 cloudsql-proxy:
+{% if grains['os'] == 'Fedora' %}
+  pkg:
+    - installed
+    - name: golang-github-googlecloudplatform-cloudsql-proxy
+{% else %}
   cmd:
     - run
     - name: go get github.com/GoogleCloudPlatform/cloudsql-proxy/cmd/cloud_sql_proxy
@@ -902,6 +922,7 @@ cloudsql-proxy:
     - require:
       - cmd: go-installed
       - cmd: ssh-setup
+{% endif %}
 
 gcloud-repo:
   pkgrepo:
@@ -996,15 +1017,6 @@ google-chrome-stable:
     - installed
     - require:
       - pkgrepo: chrome-repo
-
-openresolv:
-  pkg:
-    - installed
-
-dnsmasq:
-  pkg:
-    - installed
-
 
 {#
 xpra-repo:
@@ -1122,51 +1134,38 @@ NetworkManager.service:
   service:
     - running
     - enable: True
-    - requires:
-      - pkg: dnsmasq
-      - file: /etc/dnsmasq.conf
-      - file: network-manager-dns
     - watch:
       - pkg: dnsmasq
       - file: /etc/dnsmasq.conf
       - file: network-manager-dns
-
-/etc/resolvconf/resolv.conf.d/base:
-  file:
-    - managed
-    - makedirs: True
-    - contents: |
-        search test
-        nameserver 192.168.49.2
-        timeout 5
-
-resolvconf-update:
-  cmd:
-    - run
-    - name: resolvconf -u
-    - requires:
-      - pkg: resolvconf
-    - onchanges:
-      - file: /etc/resolvconf/resolv.conf.d/base
+      - service: resolvconf.service
+      - service: systemd-resolved-disabled
 
 resolvconf.service:
   service:
     - dead
     - enable: False
-    - require:
-      - cmd: resolvconf-update
 
 ifupdown:
   pkg:
     - installed
 
-docker-group:
-  group:
-    - present
-    - name: docker
-    - members:
-      - max
-
 xrandr:
+  pkg:
+    - installed
+
+openssl:
+  pkg:
+    - installed
+
+uuid:
+  pkg:
+    - installed
+
+telnet:
+  pkg:
+    - installed
+
+exa:
   pkg:
     - installed
