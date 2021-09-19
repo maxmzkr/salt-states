@@ -1169,3 +1169,7 @@ telnet:
 exa:
   pkg:
     - installed
+
+python3-pyqt5:
+  pkg:
+    - installed
