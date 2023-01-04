@@ -1,3 +1,4 @@
+{%- set gh_token = salt['cmd.shell']('yq eval \'."github.com".oauth_token\' /home/max/.config/gh/hosts.yml') -%}
 {% if grains['os'] != 'Fedora' %}
 python-is-python3:
   pkg:
@@ -443,8 +444,8 @@ go1.4-installed:
 go-installed:
   cmd:
     - run
-    - name: source /home/max/.gvm/scripts/gvm && gvm use go1.4 && gvm install go1.17 && gvm use go1.17 --default && gvm use go1.17
-    - unless: source /home/max/.gvm/scripts/gvm && which go && go version | grep "go1.17"
+    - name: source /home/max/.gvm/scripts/gvm && gvm use go1.4 && gvm install go1.18 && gvm use go1.18 --default && gvm use go1.18
+    - unless: source /home/max/.gvm/scripts/gvm && which go && go version | grep "go1.18"
     - runas: max
     - require:
       - cmd: go1.4-installed
@@ -496,13 +497,25 @@ go-delve-installed:
       - cmd: ssh-setup
       - git: go-delve-cloned
 
-antibody:
-  pkg.installed:
+anitbody:
+  gh:
+    - pkg_installed
     - sources:
+      - repo: getantibody/antibody
+        pattern: "*amd64.rpm"
+
+
+antibody:
+  gh:
+    - pkg_installed
+    - api_key: {{ gh_token }}
+    - sources:
+      - antibody:
+          repo: getantibody/antibody
 {% if grains['os'] == 'Fedora' %}
-      - antibody: {{ salt['cmd.shell']('curl -s https://api.github.com/repos/getantibody/antibody/releases/latest | grep "browser_download" | grep "amd64.rpm" | cut -d : -f 2- | tr -d \\"') }}
+          pattern: "*amd64.rpm"
 {% else %}
-      - antibody: {{ salt['cmd.shell']('curl -s https://api.github.com/repos/getantibody/antibody/releases/latest | grep "browser_download" | grep "amd64.deb" | cut -d : -f 2- | tr -d \\"') }}
+          pattern: "*amd64.deb"
 {% endif %}
 
 tmux-plugins-cloned:
@@ -684,13 +697,15 @@ golang-goprotobuf-dev:
 #}
 
 sops:
-  pkg:
-    - installed
+  gh:
+    - pkg_installed
     - sources:
+      - sops:
+        - repo: mozilla/sops
 {% if grains['os'] == 'Fedora' %}
-      - sops: {{ salt['cmd.shell']('curl -s https://api.github.com/repos/mozilla/sops/releases/latest | grep "browser_download" | grep ".rpm" | cut -d : -f 2- | tr -d \\"') }}
+        - pattern: "*x86_64.rpm"
 {% else %}
-      - sops: {{ salt['cmd.shell']('curl -s https://api.github.com/repos/mozilla/sops/releases/latest | grep "browser_download" | grep ".deb" | cut -d : -f 2- | tr -d \\"') }}
+        - pattern: "*.deb"
 {% endif %}
 
 iotop:
@@ -749,7 +764,7 @@ helm:
 {% if grains['os'] == 'Fedora' %}
   cmd:
     - run
-    - name: snap install helm --classic
+    - name: snap install helm --channel=3.6/stable --classic
     - unless: which helm
     - require:
       - pkg: snapd
@@ -780,6 +795,21 @@ helm-secrets:
   cmd:
     - run
     - name: helm plugin install https://github.com/jkroepke/helm-secrets
+    - unless: helm plugin list | grep "secrets"
+    - runas: max
+    - require:
+{% if grains['os'] == 'Fedora' %}
+      - cmd: helm
+{% else %}
+      - pkg: helm
+{% endif %}
+      - pkg: git
+      - cmd: ssh-setup
+
+helm-gcs:
+  cmd:
+    - run
+    - name: helm plugin install https://github.com/hayorov/helm-gcs.git
     - unless: helm plugin list | grep "secrets"
     - runas: max
     - require:
@@ -834,30 +864,74 @@ clangd:
     - name: clangd
 {% endif %}
 
-kubernetes-repo:
-  pkgrepo:
-    - managed
-{% if grains['os'] == 'Fedora' %}
-    - name: kubernetes
-    - baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
-    - gpgcheck: 1
-    - gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
-{% else %}
-    - name: deb https://apt.kubernetes.io/ kubernetes-xenial main
-    - file: /etc/apt/sources.list.d/kubernetes.list
-    - architectures: amd64
-    - gpgcheck: 1
-    - key_url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
-    - clean_file: True
-{% endif %}
+/home/max/.bin:
+  file:
+    - directory
+    - user: max
+    - group: max
 
-kubectl:
-  pkg:
-    - installed
+/home/max/.kbenv:
+  file:
+    - directory
+    - user: max
+    - group: max
+
+kbenv-archive:
+  gh:
+    - archive_extracted
+    - name: /home/max/.kbenv
+    - repo: little-angry-clouds/kubernetes-binaries-managers
+    - api_key: {{ gh_token }}
+    - pattern: kbenv-linux-amd64.tar.gz
+    - user: max
+    - group: max
+    - skip_verify: true
+    - enforce_toplevel: false
     - require:
-      - pkgrepo: kubernetes-repo
+      - file: /home/max/.kbenv
+
+/home/max/.local/bin/kbenv:
+  file:
+    - managed
+    - source: /home/max/.kbenv/kbenv-linux-amd64
+    - user: max
+    - group: max
+    - mode: 755
+    - require:
+      - archive: kbenv-archive
+
+/home/max/.local/bin/kubectl:
+  file:
+    - managed
+    - source: /home/max/.kbenv/kubectl-wrapper-linux-amd64
+    - user: max
+    - group: max
+    - mode: 755
+    - require:
+      - archive: kbenv-archive
+
+kbenv:
+  cmd:
+    - run
+    - name: echo "noop"
+    - require:
+      - file: /home/max/.local/bin/kbenv
+      - file: /home/max/.local/bin/kubectl
+      - file: /home/max/.bin
+
+kubectl-1.19.4:
+  cmd:
+    - run
+    - name: /home/max/.local/bin/kbenv install 1.19.4
+    - unless: /home/max/.local/bin/kbenv list local | grep "1.19.4"
+    # - require:
+    #   - cmd: kbenv
 
 zlib-devel:
+  pkg:
+    - installed
+
+openssl-devel:
   pkg:
     - installed
 
@@ -879,6 +953,7 @@ python3.7:
     - require:
       - archive: python3.7-tar
       - pkg: zlib-devel
+      - pkg: openssl-devel
 
 python3.7-pip:
   cmd:
@@ -906,23 +981,17 @@ python3.7-venv:
 {% endif %}
 
 
-cloudsql-proxy:
-{% if grains['os'] == 'Fedora' %}
-  pkg:
-    - installed
-    - name: golang-github-googlecloudplatform-cloudsql-proxy
-{% else %}
-  cmd:
-    - run
-    - name: go get github.com/GoogleCloudPlatform/cloudsql-proxy/cmd/cloud_sql_proxy
-    - unless: which cloud_sql_proxy
-    - runas: max
-    - env:
-      - GO111MODULUE: on
-    - require:
-      - cmd: go-installed
-      - cmd: ssh-setup
-{% endif %}
+cloud_sql_proxy:
+  gh:
+    - file_managed
+    - name: /home/max/.local/bin/cloud_sql_proxy
+    - repo: GoogleCloudPlatform/cloudsql-proxy
+    - pattern: "*linux.amd64"
+    - version: 1.33.2
+    - api_key: {{ gh_token }}
+    - link_source: body
+    - skip_verify: true
+    - mode: 755
 
 gcloud-repo:
   pkgrepo:
@@ -1170,6 +1239,209 @@ exa:
   pkg:
     - installed
 
-python3-pyqt5:
+jwt-cli:
+  gh:
+    - archive_binary
+    - name: /home/max/.local/bin/jwt
+    - repo: mike-engel/jwt-cli
+    - pattern: jwt-linux.tar.gz
+    - file_name: jwt
+    - api_key: {{ gh_token }}
+    - user: max
+    - group: max
+    - mode: 755
+ 
+pulseaudio-utils:
   pkg:
     - installed
+ 
+terraformer:
+  gh:
+    - binary
+    - repo: GoogleCloudPlatform/terraformer
+    - name: /home/max/.local/bin/terraformer
+    - pattern: terraformer-google-linux-amd64
+    - api_key: {{ gh_token }}
+    - user: max
+    - group: max
+    - mode: 755
+
+google-cloud-sdk-pubsub-emulator:
+  pkg:
+    - installed
+
+google-cloud-pubsub:
+  cmd:
+    - run
+    - name: source /home/max/.gvm/scripts/gvm && go get cloud.google.com/go/pubsub
+    - unless: source /home/max/.gvm/scripts/gvm && which gopls
+    - runas: max
+    - env:
+      - GO111MODULUE: on
+    - require:
+      - cmd: go-installed
+      - cmd: ssh-setup
+
+python-pubsub:
+  git:
+    - cloned
+    - name: git@github.com:/googleapis/python-pubsub.git
+    - target: /home/max/python-pubsub
+    - user: max
+    - require:
+      - pkg: git
+      - cmd: ssh-setup
+
+maven:
+  pkg:
+    - installed
+
+/opt/Postman:
+  file:
+    - directory
+
+postman:
+  archive:
+    - extracted
+    - name: /opt
+    - source: https://dl.pstmn.io/download/latest/linux64
+    - archive_format: tar
+    - skip_verify: true
+    - require:
+      - file: /opt/Postman
+
+/usr/local/bin/postman:
+  file:
+    - symlink
+    - target: /opt/Postman/Postman
+    - require:
+      - archive: postman
+
+/usr/local/share/applications/postman.desktop:
+  file:
+    - managed
+    - contents: |
+        [Desktop Entry]
+        Name=Postman
+        Exec=/usr/local/bin/postman
+        StartupNotify=true
+        Terminal=false
+        Icon=/opt/Postman/app/icons/icon_128x128.png
+        Type=Application
+        Categories=Network;
+    - require:
+      - file: /usr/local/bin/postman
+
+grpcurl:
+  gh:
+    - archive_binary
+    - name: /home/max/.local/bin/grpcurl
+    - repo: fullstorydev/grpcurl
+    - pattern: grpcurl_*_linux_x86_64.tar.gz
+    - file_name: grpcurl
+    - api_key: {{ gh_token }}
+    - user: max
+    - group: max
+    - mode: 755
+
+autorandr:
+  pkg:
+    - installed
+
+stylua:
+  gh:
+    - archive_binary
+    - name: /home/max/.local/bin/stylua
+    - repo: JohnnyMorganz/StyLua
+    - pattern: 'stylua-linux.zip'
+    - api_key: {{ gh_token }}
+    - user: max
+    - group: max
+    - mode: 755
+
+wrench:
+  gh:
+    - binary
+    - name: /home/max/.local/bin/wrench
+    - repo: cloudspannerecosystem/wrench
+    - pattern: wrench_linux_amd64
+    - api_key: {{ gh_token }}
+    - user: max
+    - group: max
+    - mode: 755
+
+spanner-cli:
+  cmd:
+    - run
+    - name: source /home/max/.gvm/scripts/gvm && go install github.com/cloudspannerecosystem/spanner-cli@latest
+    - unless: source /home/max/.gvm/scripts/gvm && which spanner-cli
+    - runas: max
+    - env:
+      - GO111MODULUE: on
+    - require:
+      - cmd: go-installed
+      - cmd: ssh-setup
+
+sqlparse:
+  cmd:
+    - run
+    - name: pipx install sqlparse
+    - unless: ls /home/max/.local/bin/sqlparse
+    - runas: max
+    - require:
+      - pkg: pipx
+
+poetry:
+  pkg:
+    - installed
+
+xmlsec1-devel:
+  pkg:
+    - installed
+
+libtool-ltdl-devel:
+  pkg:
+     - installed
+
+mysql-devel:
+  pkg:
+    - installed
+
+grim:
+  pkg:
+    - installed
+
+slurp:
+  pkg:
+    - installed
+
+bw:
+  cmd:
+    - run
+    - name: snap install bw
+    - unless: "! snap list bw && true"
+{% if grains['os'] == 'Fedora' %}
+    - require:
+      - pkg: snapd
+      - file: /snap
+{% endif %}
+
+kafka-tar:
+  archive:
+    - extracted
+    - name: /home/max/.kafka
+    - source: https://downloads.apache.org/kafka/3.3.1/kafka_2.13-3.3.1.tgz
+    - user: max
+    - group: max
+    - skip_verify: true
+
+jd:
+  gh:
+    - file_managed
+    - name: /home/max/.local/bin/jd
+    - repo: josephburnett/jd
+    - pattern: jd-amd64-linux
+    - version: v1.6.1
+    - api_key: {{ gh_token }}
+    - skip_verify: true
+    - mode: 755
